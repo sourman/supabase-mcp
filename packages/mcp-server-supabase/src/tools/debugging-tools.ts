@@ -3,7 +3,11 @@ import {
   logsServiceSchema,
   type DebuggingOperations,
 } from '../platform/types.js';
-import { injectableTool, type ToolDefs } from './util.js';
+import {
+  injectableTool,
+  type ToolDefs,
+  wrapWithUntrustedDataBoundary,
+} from './util.js';
 
 type DebuggingToolsOptions = {
   debugging: DebuggingOperations;
@@ -33,7 +37,7 @@ const getAdvisorsOutputSchema = z.object({
 export const debuggingToolDefs = {
   get_logs: {
     description:
-      'Gets logs for a Supabase project by service type. Use this to help debug problems with your app. This will return logs within the last 24 hours.',
+      'Gets logs for a Supabase project by service type. Each call returns logs from the last 24 hours. Edge Function logs are split by kind: `edge-function` returns invocation/request logs, while `edge-function-runtime` returns console output from inside the function. Query one service first, then correlate with other services by timestamp or error anchors. Do not poll get_logs in a loop; use Log Drains for streaming logs.',
     parameters: getLogsInputSchema,
     outputSchema: getLogsOutputSchema,
     annotations: {
@@ -78,7 +82,7 @@ export function getDebuggingTools({
           iso_timestamp_start: startTimestamp.toISOString(),
           iso_timestamp_end: endTimestamp.toISOString(),
         });
-        return { result };
+        return { result: wrapWithUntrustedDataBoundary(result) };
       },
     }),
     get_advisors: injectableTool({

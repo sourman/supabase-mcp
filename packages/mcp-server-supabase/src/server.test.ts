@@ -1428,6 +1428,7 @@ describe('tools', () => {
       'branch-action',
       'postgres',
       'edge-function',
+      'edge-function-runtime',
       'auth',
       'storage',
       'realtime',
@@ -1442,7 +1443,8 @@ describe('tools', () => {
         },
       });
 
-      expect(result).toEqual([]);
+      expect(result).toContain('untrusted-data');
+      expect(result).toContain(JSON.stringify([]));
     }
   });
 
