@@ -30,29 +30,26 @@ jobs:
 
       - name: Prepare standalone tarballs
         run: |
-          # Pack mcp-utils
+          # Copy both packages to temp dirs
           cp -r packages/mcp-utils /tmp/mcp-utils-pkg
-          # Resolve workspace:^ to the actual version in its package.json
-          MCP_UTILS_VERSION=$(node -p "require('./packages/mcp-utils/package.json').version")
-          # Pack mcp-server-supabase with resolved deps
           cp -r packages/mcp-server-supabase /tmp/mcp-server-pkg
 
-          # Fix the workspace dependency to a file reference
-          sed -i "s|\"@supabase/mcp-utils\": \"workspace:\\^\"|\"@supabase/mcp-utils\": \"file:../mcp-utils.tgz\"|" /tmp/mcp-server-pkg/package.json
-
-          # Fix catalog: peerDeps to real versions
-          sed -i 's|"@modelcontextprotocol/sdk": "catalog:"|"@modelcontextprotocol/sdk": "^1.25.2"|' /tmp/mcp-server-pkg/package.json
-          sed -i 's|"zod": "catalog:"|"zod": "^3.25.0 || ^4.0.0"|' /tmp/mcp-server-pkg/package.json
-
-          # Remove catalog: devDeps (not needed at runtime)
-          sed -i '/"catalog:"$/d' /tmp/mcp-server-pkg/package.json
+          # Rewrite mcp-server-supabase/package.json: resolve workspace/catalog deps
+          node -e "
+            const fs = require('fs');
+            const p = '/tmp/mcp-server-pkg/package.json';
+            const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+            pkg.dependencies['@supabase/mcp-utils'] = 'file:../mcp-utils.tgz';
+            pkg.peerDependencies['@modelcontextprotocol/sdk'] = '^1.25.2';
+            pkg.peerDependencies['zod'] = '^3.25.0 || ^4.0.0';
+            pkg.devDependencies = {};
+            fs.writeFileSync(p, JSON.stringify(pkg, null, 2));
+          "
 
           # Pack both
           cd /tmp/mcp-utils-pkg && npm pack && cp *.tgz /tmp/mcp-utils.tgz
           cd /tmp/mcp-server-pkg && npm pack && cp *.tgz /tmp/mcp-server-supabase.tgz
 
-          # Create a combined install tarball: install mcp-utils first, then mcp-server
-          # so clients can do: npm install mcp-server-supabase.tgz mcp-utils.tgz
           cp /tmp/mcp-utils.tgz packages/
           cp /tmp/mcp-server-supabase.tgz packages/
 
