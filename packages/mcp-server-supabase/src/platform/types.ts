@@ -146,6 +146,25 @@ export const getLogsOptionsSchema = z.object({
   service: logsServiceSchema,
   iso_timestamp_start: z.string().optional(),
   iso_timestamp_end: z.string().optional(),
+  function: z
+    .string()
+    .optional()
+    .describe(
+      'Edge function slug (e.g. "my-function") or UUID to filter by. Only applies to edge-function and edge-function-runtime services.'
+    ),
+  search: z
+    .string()
+    .optional()
+    .describe(
+      'Case-insensitive text search across common log fields (event_message, function_id, status, etc.).'
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .optional()
+    .describe('Maximum number of log rows to return (default 100).'),
 });
 
 export const generateTypescriptTypesResultSchema = z.object({

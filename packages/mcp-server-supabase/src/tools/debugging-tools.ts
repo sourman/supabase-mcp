@@ -29,6 +29,27 @@ const getLogsInputSchema = z.object({
     .describe(
       'The end of the log window as an ISO 8601 timestamp. The API caps the requested range at 24 hours.'
     ),
+  function: z
+    .string()
+    .optional()
+    .describe(
+      'Edge Function slug (e.g. "hello-world") or UUID to filter by. Resolves the slug to a UUID automatically. Only valid with the edge-function and edge-function-runtime services.'
+    ),
+  search: z
+    .string()
+    .optional()
+    .describe(
+      'Case-insensitive text search across common log fields. Useful for filtering by error messages, status codes, or deployment IDs.'
+    ),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(1000)
+    .optional()
+    .describe(
+      'Maximum number of log rows to return. Defaults to 100. Increase for broader context or decrease to reduce noise.'
+    ),
 });
 
 const getLogsOutputSchema = z.object({
@@ -49,7 +70,7 @@ const getAdvisorsOutputSchema = z.object({
 export const debuggingToolDefs = {
   get_logs: {
     description:
-      'Gets logs for a Supabase project by service type. Each call returns logs from the last 24 hours by default. Provide a custom iso_timestamp_start/iso_timestamp_end window up to 24 hours. Edge Function logs are split by kind: `edge-function` returns invocation/request logs, while `edge-function-runtime` returns console output from inside the function. Query one service first, then correlate with other services by timestamp or error anchors. Do not poll get_logs in a loop.',
+      'Gets logs for a Supabase project by service type. Each call returns logs from the last 24 hours by default. Provide a custom iso_timestamp_start/iso_timestamp_end window up to 24 hours. Edge Function logs are split by kind: `edge-function` returns invocation/request logs (HTTP status, method, path), while `edge-function-runtime` returns console output from inside the function (console.log, boot/shutdown events). Use the `function` parameter to filter by edge function slug or UUID (e.g. "my-function") instead of listing all functions. Use `search` for case-insensitive text filtering across common log fields. Do not poll get_logs in a loop.',
     parameters: getLogsInputSchema,
     outputSchema: getLogsOutputSchema,
     annotations: {
@@ -90,6 +111,9 @@ export function getDebuggingTools({
         service,
         iso_timestamp_start,
         iso_timestamp_end,
+        function: functionSlugOrId,
+        search,
+        limit,
       }) => {
         const endTimestamp = new Date();
         const startTimestamp = new Date(
@@ -101,6 +125,9 @@ export function getDebuggingTools({
           iso_timestamp_start:
             iso_timestamp_start ?? startTimestamp.toISOString(),
           iso_timestamp_end: iso_timestamp_end ?? endTimestamp.toISOString(),
+          function: functionSlugOrId,
+          search,
+          limit,
         });
         return { result: wrapWithUntrustedDataBoundary(result) };
       },
