@@ -37,11 +37,11 @@ jobs:
           # Resolve catalog:/workspace: deps in both packages
           node -e "
             const fs = require('fs');
-            const resolve = (p, path) => {
-              const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+            const fixPkg = (pkg) => {
+              // Remove workspace deps (resolved by installing sibling tarball alongside)
               if (pkg.dependencies) {
                 for (const [k, v] of Object.entries(pkg.dependencies)) {
-                  if (v.startsWith('workspace:')) pkg.dependencies[k] = 'file:../mcp-utils.tgz';
+                  if (v.startsWith('workspace:')) delete pkg.dependencies[k];
                 }
               }
               pkg.peerDependencies = Object.fromEntries(
@@ -50,10 +50,13 @@ jobs:
                     (k === '@modelcontextprotocol/sdk' ? '^1.25.2' : '^3.25.0 || ^4.0.0') : v])
               );
               pkg.devDependencies = {};
-              fs.writeFileSync(p, JSON.stringify(pkg, null, 2));
             };
-            resolve('/tmp/mcp-server-pkg/package.json', '/tmp/mcp-server-pkg/package.json');
-            resolve('/tmp/mcp-utils-pkg/package.json', '/tmp/mcp-utils-pkg/package.json');
+            for (const dir of ['/tmp/mcp-server-pkg', '/tmp/mcp-utils-pkg']) {
+              const p = dir + '/package.json';
+              const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
+              fixPkg(pkg);
+              fs.writeFileSync(p, JSON.stringify(pkg, null, 2));
+            }
           "
 
           # Pack both
