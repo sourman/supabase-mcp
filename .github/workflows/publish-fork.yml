@@ -34,16 +34,26 @@ jobs:
           cp -r packages/mcp-utils /tmp/mcp-utils-pkg
           cp -r packages/mcp-server-supabase /tmp/mcp-server-pkg
 
-          # Rewrite mcp-server-supabase/package.json: resolve workspace/catalog deps
+          # Resolve catalog:/workspace: deps in both packages
           node -e "
             const fs = require('fs');
-            const p = '/tmp/mcp-server-pkg/package.json';
-            const pkg = JSON.parse(fs.readFileSync(p, 'utf8'));
-            pkg.dependencies['@supabase/mcp-utils'] = 'file:../mcp-utils.tgz';
-            pkg.peerDependencies['@modelcontextprotocol/sdk'] = '^1.25.2';
-            pkg.peerDependencies['zod'] = '^3.25.0 || ^4.0.0';
-            pkg.devDependencies = {};
-            fs.writeFileSync(p, JSON.stringify(pkg, null, 2));
+            const resolve = (p, path) => {
+              const pkg = JSON.parse(fs.readFileSync(path, 'utf8'));
+              if (pkg.dependencies) {
+                for (const [k, v] of Object.entries(pkg.dependencies)) {
+                  if (v.startsWith('workspace:')) pkg.dependencies[k] = 'file:../mcp-utils.tgz';
+                }
+              }
+              pkg.peerDependencies = Object.fromEntries(
+                Object.entries(pkg.peerDependencies || {})
+                  .map(([k, v]) => [k, v === 'catalog:' ?
+                    (k === '@modelcontextprotocol/sdk' ? '^1.25.2' : '^3.25.0 || ^4.0.0') : v])
+              );
+              pkg.devDependencies = {};
+              fs.writeFileSync(p, JSON.stringify(pkg, null, 2));
+            };
+            resolve('/tmp/mcp-server-pkg/package.json', '/tmp/mcp-server-pkg/package.json');
+            resolve('/tmp/mcp-utils-pkg/package.json', '/tmp/mcp-utils-pkg/package.json');
           "
 
           # Pack both
