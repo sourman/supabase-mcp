@@ -6,7 +6,7 @@ permissions:
 on:
   push:
     branches:
-      - feat/function-logs-nameres
+      - main
   workflow_dispatch:
 
 jobs:
