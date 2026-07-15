@@ -28,17 +28,33 @@ jobs:
       - run: pnpm --filter @supabase/mcp-utils build
       - run: pnpm --filter @supabase/mcp-server-supabase build
 
-      - name: Pack mcp-utils
+      - name: Prepare standalone tarballs
         run: |
-          cd packages/mcp-utils
-          npm pack
-          mv *.tgz ../../mcp-utils.tgz
+          # Pack mcp-utils
+          cp -r packages/mcp-utils /tmp/mcp-utils-pkg
+          # Resolve workspace:^ to the actual version in its package.json
+          MCP_UTILS_VERSION=$(node -p "require('./packages/mcp-utils/package.json').version")
+          # Pack mcp-server-supabase with resolved deps
+          cp -r packages/mcp-server-supabase /tmp/mcp-server-pkg
 
-      - name: Pack mcp-server-supabase
-        run: |
-          cd packages/mcp-server-supabase
-          npm pack
-          mv *.tgz ../../mcp-server-supabase.tgz
+          # Fix the workspace dependency to a file reference
+          sed -i "s|\"@supabase/mcp-utils\": \"workspace:\\^\"|\"@supabase/mcp-utils\": \"file:../mcp-utils.tgz\"|" /tmp/mcp-server-pkg/package.json
+
+          # Fix catalog: peerDeps to real versions
+          sed -i 's|"@modelcontextprotocol/sdk": "catalog:"|"@modelcontextprotocol/sdk": "^1.25.2"|' /tmp/mcp-server-pkg/package.json
+          sed -i 's|"zod": "catalog:"|"zod": "^3.25.0 || ^4.0.0"|' /tmp/mcp-server-pkg/package.json
+
+          # Remove catalog: devDeps (not needed at runtime)
+          sed -i '/"catalog:"$/d' /tmp/mcp-server-pkg/package.json
+
+          # Pack both
+          cd /tmp/mcp-utils-pkg && npm pack && cp *.tgz /tmp/mcp-utils.tgz
+          cd /tmp/mcp-server-pkg && npm pack && cp *.tgz /tmp/mcp-server-supabase.tgz
+
+          # Create a combined install tarball: install mcp-utils first, then mcp-server
+          # so clients can do: npm install mcp-server-supabase.tgz mcp-utils.tgz
+          cp /tmp/mcp-utils.tgz packages/
+          cp /tmp/mcp-server-supabase.tgz packages/
 
       - name: Delete previous latest release
         run: gh release delete latest --yes --cleanup-tag || true
@@ -47,7 +63,9 @@ jobs:
 
       - name: Create latest release
         run: |
-          gh release create latest mcp-utils.tgz mcp-server-supabase.tgz \
+          gh release create latest \
+            packages/mcp-utils.tgz \
+            packages/mcp-server-supabase.tgz \
             --title "Latest build" \
             --notes "Auto-built from commit ${{ github.sha }}" \
             --target main
