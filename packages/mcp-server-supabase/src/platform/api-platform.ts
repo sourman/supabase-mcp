@@ -6,7 +6,7 @@ import type { InitData } from '@supabase/mcp-utils';
 import { fileURLToPath } from 'node:url';
 import packageJson from '../../package.json' with { type: 'json' };
 import { getDeploymentId, normalizeFilename } from '../edge-function.js';
-import { getLogQuery } from '../logs.js';
+import { getClickHouseLogQuery } from '../logs.js';
 import {
   assertProjectScopedSuccess,
   assertSuccess,
@@ -252,13 +252,64 @@ export function createSupabaseApiPlatform(
 
   const debugging: DebuggingOperations = {
     async getLogs(projectId: string, options: GetLogsOptions) {
-      const { service, iso_timestamp_start, iso_timestamp_end } =
-        getLogsOptionsSchema.parse(options);
+      const {
+        service,
+        iso_timestamp_start,
+        iso_timestamp_end,
+        function: functionSlugOrId,
+        search,
+        limit,
+      } = getLogsOptionsSchema.parse(options);
 
-      const sql = getLogQuery(service);
+      let functionId: string | undefined;
+
+      if (functionSlugOrId) {
+        const isUuid =
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+            functionSlugOrId
+          );
+
+        if (isUuid) {
+          functionId = functionSlugOrId;
+        } else {
+          const functionResponse = await managementApiClient.GET(
+            '/v1/projects/{ref}/functions/{function_slug}',
+            {
+              params: {
+                path: {
+                  ref: projectId,
+                  function_slug: functionSlugOrId,
+                },
+              },
+            }
+          );
+
+          assertSuccess(
+            functionResponse,
+            `Failed to find edge function "${functionSlugOrId}"`
+          );
+
+          const func = functionResponse.data;
+          const id = Array.isArray(func) ? func[0]?.id : func?.id;
+
+          if (!id) {
+            throw new Error(
+              `Edge function "${functionSlugOrId}" not found or returned no ID`
+            );
+          }
+
+          functionId = id;
+        }
+      }
+
+      const sql = getClickHouseLogQuery(service, {
+        limit,
+        functionId,
+        search,
+      });
 
       const response = await managementApiClient.GET(
-        '/v1/projects/{ref}/analytics/endpoints/logs.all',
+        '/v1/projects/{ref}/analytics/endpoints/logs',
         {
           params: {
             path: {
