@@ -50,8 +50,8 @@ jobs:
           cd /tmp/mcp-utils-pkg && npm pack && cp *.tgz /tmp/mcp-utils.tgz
           cd /tmp/mcp-server-pkg && npm pack && cp *.tgz /tmp/mcp-server-supabase.tgz
 
-          cp /tmp/mcp-utils.tgz packages/
-          cp /tmp/mcp-server-supabase.tgz packages/
+          cp /tmp/mcp-utils.tgz $GITHUB_WORKSPACE/packages/
+          cp /tmp/mcp-server-supabase.tgz $GITHUB_WORKSPACE/packages/
 
       - name: Delete previous latest release
         run: gh release delete latest --yes --cleanup-tag || true
