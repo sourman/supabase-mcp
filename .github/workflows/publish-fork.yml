@@ -1,0 +1,55 @@
+name: Publish fork build
+
+permissions:
+  contents: write
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - run: pnpm install --ignore-scripts
+
+      - run: pnpm --filter @supabase/mcp-utils build
+      - run: pnpm --filter @supabase/mcp-server-supabase build
+
+      - name: Pack mcp-utils
+        run: |
+          cd packages/mcp-utils
+          npm pack
+          mv *.tgz ../../mcp-utils.tgz
+
+      - name: Pack mcp-server-supabase
+        run: |
+          cd packages/mcp-server-supabase
+          npm pack
+          mv *.tgz ../../mcp-server-supabase.tgz
+
+      - name: Delete previous latest release
+        run: gh release delete latest --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create latest release
+        run: |
+          gh release create latest mcp-utils.tgz mcp-server-supabase.tgz \
+            --title "Latest build" \
+            --notes "Auto-built from commit ${{ github.sha }}" \
+            --target main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
